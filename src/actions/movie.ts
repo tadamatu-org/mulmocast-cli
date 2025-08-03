@@ -116,22 +116,8 @@ const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, contex
       const { startAt, duration, captionFile, captionFiles } = beat;
       GraphAILogger.info(`Beat ${index}: captionFile=${captionFile}, captionFiles=${captionFiles?.length || 0}`);
 
-      // 通常のcaptionファイルがある場合（優先）
-      if (startAt !== undefined && duration !== undefined && captionFile !== undefined) {
-        GraphAILogger.info(`Processing normal caption for beat ${index}: ${captionFile}`);
-        const captionInputIndex = FfmpegContextAddInput(ffmpegContext, captionFile);
-        const compositeVideoId = `oc${index}`;
-        ffmpegContext.filterComplex.push(
-          `[${acc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${startAt + introPadding},${startAt + duration + introPadding})'[${compositeVideoId}]`,
-        );
-        GraphAILogger.info(
-          `Added filter: [${acc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${startAt + introPadding},${startAt + duration + introPadding})'[${compositeVideoId}]`,
-        );
-        return compositeVideoId;
-      }
-
-      // 句読点分割されたcaptionがある場合（captionFileがない場合のみ）
-      if (captionFiles && captionFiles.length > 0 && startAt !== undefined && duration !== undefined && !captionFile) {
+      // 句読点分割されたcaptionがある場合はそれを使用（優先）
+      if (captionFiles && captionFiles.length > 0 && startAt !== undefined && duration !== undefined) {
         GraphAILogger.info(`Processing split captions for beat ${index}: ${captionFiles.length} files`);
         let currentAcc = acc;
 
@@ -168,6 +154,20 @@ const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, contex
         }
 
         return currentAcc;
+      }
+
+      // 通常のcaptionファイルがある場合（句読点分割がない場合のみ）
+      if (startAt !== undefined && duration !== undefined && captionFile !== undefined && (!captionFiles || captionFiles.length === 0)) {
+        GraphAILogger.info(`Processing normal caption for beat ${index}: ${captionFile}`);
+        const captionInputIndex = FfmpegContextAddInput(ffmpegContext, captionFile);
+        const compositeVideoId = `oc${index}`;
+        ffmpegContext.filterComplex.push(
+          `[${acc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${startAt + introPadding},${startAt + duration + introPadding})'[${compositeVideoId}]`,
+        );
+        GraphAILogger.info(
+          `Added filter: [${acc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${startAt + introPadding},${startAt + duration + introPadding})'[${compositeVideoId}]`,
+        );
+        return compositeVideoId;
       }
       return acc;
     }, concatVideoId);
