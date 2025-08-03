@@ -295,26 +295,29 @@ export const audio = async (context: MulmoStudioContext, settings?: Record<strin
   }
 };
 
-export const generateBeatAudioWithPunctuationSplit = async (index: number, context: MulmoStudioContext, settings?: Record<string, string>, callbacks?: CallbackFunction[]) => {
+export const generateBeatAudioWithPunctuationSplit = async (
+  index: number,
+  context: MulmoStudioContext,
+  settings?: Record<string, string>,
+  callbacks?: CallbackFunction[],
+) => {
   try {
     MulmoStudioContextMethods.setSessionState(context, "audio", true);
     const beat = context.studio.script.beats[index];
     const studioBeat = context.studio.beats[index];
-    
+
     // テキストを句読点で分割
     const text = localizedText(beat, context.multiLingual[index], context.lang);
-    const sentences = context.lang === "ja" 
-      ? splitTextByPunctuation(text)
-      : splitTextByEnglishPunctuation(text);
-    
+    const sentences = context.lang === "ja" ? splitTextByPunctuation(text) : splitTextByEnglishPunctuation(text);
+
     const audioFiles: string[] = [];
-    
+
     // 各文に対してaudioを生成
     for (let i = 0; i < sentences.length; i++) {
       const sentence = sentences[i];
       const sentenceBeat = { ...beat, text: sentence };
       const sentenceStudioBeat = { ...studioBeat };
-      
+
       const fileName = MulmoStudioContextMethods.getFileName(context);
       const audioDirPath = MulmoStudioContextMethods.getAudioDirPath(context);
       const outDirPath = MulmoStudioContextMethods.getOutDirPath(context);
@@ -337,14 +340,14 @@ export const generateBeatAudioWithPunctuationSplit = async (index: number, conte
           graph.registerCallback(callback);
         });
       }
-      
+
       await graph.run();
-      
+
       if (sentenceStudioBeat.audioFile) {
         audioFiles.push(sentenceStudioBeat.audioFile);
       }
     }
-    
+
     // 分割されたaudioファイルを結合
     if (audioFiles.length > 0) {
       const combinedAudioPath = getBeatAudioPath(text, context, beat, context.lang);
@@ -354,8 +357,54 @@ export const generateBeatAudioWithPunctuationSplit = async (index: number, conte
         studioBeat.audioFile = combinedAudioPath;
       }
     }
-    
   } finally {
     MulmoStudioContextMethods.setSessionState(context, "audio", false);
+  }
+};
+
+export const audioWithPunctuationSplit = async (context: MulmoStudioContext, settings?: Record<string, string>, callbacks?: CallbackFunction[]) => {
+  try {
+    MulmoStudioContextMethods.setSessionState(context, "audio", true);
+
+    // 各beatに対して句読点分割されたaudioを生成
+    for (let beatIndex = 0; beatIndex < context.studio.script.beats.length; beatIndex++) {
+      await generateBeatAudioWithPunctuationSplit(beatIndex, context, settings, callbacks);
+    }
+
+    // 最終的な結合処理
+    const fileName = MulmoStudioContextMethods.getFileName(context);
+    const audioDirPath = MulmoStudioContextMethods.getAudioDirPath(context);
+    const outDirPath = MulmoStudioContextMethods.getOutDirPath(context);
+    const audioArtifactFilePath = getAudioArtifactFilePath(context);
+    const audioCombinedFilePath = getAudioFilePath(audioDirPath, fileName, fileName, context.lang);
+    const outputStudioFilePath = getOutputStudioFilePath(outDirPath, fileName);
+
+    mkdir(outDirPath);
+
+    const config = settings2GraphAIConfig(settings, process.env);
+    const taskManager = new TaskManager(getConcurrency(context));
+    const graph = new GraphAI(graph_data, audioAgents, { agentFilters, taskManager, config });
+    graph.injectValue("context", context);
+    graph.injectValue("audioArtifactFilePath", audioArtifactFilePath);
+    graph.injectValue("audioCombinedFilePath", audioCombinedFilePath);
+    graph.injectValue("outputStudioFilePath", outputStudioFilePath);
+    graph.injectValue(
+      "musicFile",
+      MulmoMediaSourceMethods.resolve(context.presentationStyle.audioParams.bgm, context) ?? process.env.PATH_BGM ?? defaultBGMPath(),
+    );
+
+    if (callbacks) {
+      callbacks.forEach((callback) => {
+        graph.registerCallback(callback);
+      });
+    }
+    const result = await graph.run();
+    writingMessage(audioCombinedFilePath);
+    MulmoStudioContextMethods.setSessionState(context, "audio", false);
+    writingMessage(audioArtifactFilePath);
+    return result.combineFiles as MulmoStudioContext;
+  } catch (__error) {
+    MulmoStudioContextMethods.setSessionState(context, "audio", false);
+    throw __error;
   }
 };
