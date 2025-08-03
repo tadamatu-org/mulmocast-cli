@@ -311,7 +311,6 @@ export const generateBeatAudioWithPunctuationSplit = async (
     const sentences = context.lang === "ja" ? splitTextByPunctuation(text) : splitTextByEnglishPunctuation(text);
 
     const audioFiles: string[] = [];
-    const audioDurations: number[] = [];
 
     // 各文に対してaudioを生成
     for (let i = 0; i < sentences.length; i++) {
@@ -346,11 +345,6 @@ export const generateBeatAudioWithPunctuationSplit = async (
 
       if (sentenceStudioBeat.audioFile) {
         audioFiles.push(sentenceStudioBeat.audioFile);
-        if (sentenceStudioBeat.audioDuration) {
-          audioDurations.push(sentenceStudioBeat.audioDuration);
-        } else {
-          audioDurations.push(0); // フォールバック
-        }
       }
     }
 
@@ -362,10 +356,6 @@ export const generateBeatAudioWithPunctuationSplit = async (
         // 現在は個別のファイルとして保存
         studioBeat.audioFile = combinedAudioPath;
       }
-
-      // 分割されたaudioファイルのパスと長さを保存
-      studioBeat.splitAudioFiles = audioFiles;
-      studioBeat.splitAudioDurations = audioDurations;
     }
   } finally {
     MulmoStudioContextMethods.setSessionState(context, "audio", false);
