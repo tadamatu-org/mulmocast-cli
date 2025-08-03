@@ -204,3 +204,131 @@ export const analyzeTextImportance = (text: string): Array<{ word: string; impor
     return { word, importance };
   });
 };
+
+/**
+ * ChatGPTを使用してテキストの重要度を分析し、ハイライトする
+ * @param text 元のテキスト
+ * @param options オプション設定
+ * @returns マークアップされたHTML
+ */
+export const highlightImportantWordsWithAI = async (
+  text: string,
+  options: {
+    criticalClass?: string;
+    importantClass?: string;
+    openaiApiKey?: string;
+  } = {},
+): Promise<string> => {
+  const { criticalClass = "highlight-critical", importantClass = "highlight-important", openaiApiKey = process.env.OPENAI_API_KEY } = options;
+
+  if (!openaiApiKey) {
+    console.warn("OpenAI API key not provided, falling back to pattern-based highlighting");
+    return highlightImportantWords(text);
+  }
+
+  try {
+    // ChatGPTに重要度分析を依頼
+    const analysis = await analyzeTextImportanceWithAI(text, openaiApiKey);
+
+    let highlightedText = text;
+
+    // 最重要（赤色）の単語をハイライト
+    analysis.critical.forEach((word) => {
+      const regex = new RegExp(`(${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "g");
+      highlightedText = highlightedText.replace(regex, `<span class="${criticalClass}">$1</span>`);
+    });
+
+    // 重要（黄色）の単語をハイライト
+    analysis.important.forEach((word) => {
+      const regex = new RegExp(`(${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "g");
+      highlightedText = highlightedText.replace(regex, `<span class="${importantClass}">$1</span>`);
+    });
+
+    return highlightedText;
+  } catch (error) {
+    console.error("AI analysis failed, falling back to pattern-based highlighting:", error);
+    return highlightImportantWords(text);
+  }
+};
+
+/**
+ * ChatGPTを使用してテキストの重要度を分析する
+ * @param text 分析するテキスト
+ * @param apiKey OpenAI API key
+ * @returns 重要度分析結果
+ */
+export const analyzeTextImportanceWithAI = async (text: string, apiKey: string): Promise<{ critical: string[]; important: string[] }> => {
+  const prompt = `
+以下のテキストを分析して、文脈を把握したうえで重要な単語やフレーズを以下の2つのカテゴリに分類してください：
+
+**最重要（赤色でハイライト）**：
+- 数字（金額、パーセンテージ、年号、統計など）
+- 具体的な数値やデータ
+- 重要な固有名詞（人名、地名、会社名など）
+
+**重要（黄色でハイライト）**：
+- 重要な形容詞・副詞（画期的、革新的、初めて、最大、最小など）
+- 重要な名詞（実験、技術、開発、研究など）
+- 専門用語やカタカナ
+
+テキスト：「${text}」
+
+JSON形式で回答してください：
+{
+  "critical": ["最重要の単語1", "最重要の単語2"],
+  "important": ["重要な単語1", "重要な単語2"]
+}
+`;
+
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-3.5-turbo",
+        messages: [
+          {
+            role: "system",
+            content: "あなたはテキスト分析の専門家です。与えられたテキストから重要な単語やフレーズを抽出し、重要度に応じて分類してください。",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 0.3,
+        max_tokens: 500,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(`OpenAI API error: ${data.error?.message || "Unknown error"}`);
+    }
+
+    const content = data.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error("No content received from OpenAI");
+    }
+
+    // JSONレスポンスを解析
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("Invalid JSON response from OpenAI");
+    }
+
+    const result = JSON.parse(jsonMatch[0]);
+
+    return {
+      critical: result.critical || [],
+      important: result.important || [],
+    };
+  } catch (error) {
+    console.error("Error analyzing text with AI:", error);
+    throw error;
+  }
+};
