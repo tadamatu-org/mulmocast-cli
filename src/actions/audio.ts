@@ -311,6 +311,7 @@ export const generateBeatAudioWithPunctuationSplit = async (
     const sentences = context.lang === "ja" ? splitTextByPunctuation(text) : splitTextByEnglishPunctuation(text);
 
     const audioFiles: string[] = [];
+    const audioDurations: number[] = [];
 
     // 各文に対してaudioを生成
     for (let i = 0; i < sentences.length; i++) {
@@ -345,6 +346,13 @@ export const generateBeatAudioWithPunctuationSplit = async (
 
       if (sentenceStudioBeat.audioFile) {
         audioFiles.push(sentenceStudioBeat.audioFile);
+        // audioファイルの長さを記録
+        if (sentenceStudioBeat.audioDuration) {
+          audioDurations.push(sentenceStudioBeat.audioDuration);
+        } else {
+          // デフォルトの長さ（後で実際の長さを取得）
+          audioDurations.push(0);
+        }
       }
     }
 
@@ -355,6 +363,10 @@ export const generateBeatAudioWithPunctuationSplit = async (
         // ここでaudioファイルを結合する処理を追加
         // 現在は個別のファイルとして保存
         studioBeat.audioFile = combinedAudioPath;
+
+        // 句読点分割されたaudioファイルの情報を保存
+        studioBeat.splitAudioFiles = audioFiles;
+        studioBeat.splitAudioDurations = audioDurations;
       }
     }
   } finally {
