@@ -149,6 +149,11 @@ export const getCaptionImagePath = (context: MulmoStudioContext, index: number) 
   return `${imageProjectDirPath}/${index}_caption.png`;
 };
 
+export const getCaptionImagePathWithSentence = (context: MulmoStudioContext, beatIndex: number, sentenceIndex: number) => {
+  const imageProjectDirPath = MulmoStudioContextMethods.getImageProjectDirPath(context);
+  return `${imageProjectDirPath}/${beatIndex}-${sentenceIndex}_caption.png`;
+};
+
 // pdf
 export const getOutputPdfFilePath = (outDirPath: string, fileName: string, pdfMode: PDFMode, lang?: string) => {
   if (lang) {
