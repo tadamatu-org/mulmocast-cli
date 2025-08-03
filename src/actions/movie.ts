@@ -113,7 +113,7 @@ const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, contex
     return beatsWithCaptions.reduce((acc, beat, index) => {
       const { startAt, duration, captionFile, captionFiles } = beat;
 
-      // 句読点分割されたcaptionがある場合はそれを使用
+      // 句読点分割されたcaptionがある場合はそれを使用（優先）
       if (captionFiles && captionFiles.length > 0 && startAt !== undefined && duration !== undefined) {
         return captionFiles.reduce((innerAcc, captionFilePath, captionIndex) => {
           const captionInputIndex = FfmpegContextAddInput(ffmpegContext, captionFilePath);
@@ -142,8 +142,8 @@ const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, contex
         }, acc);
       }
 
-      // 通常のcaptionファイルがある場合
-      if (startAt !== undefined && duration !== undefined && captionFile !== undefined) {
+      // 通常のcaptionファイルがある場合（句読点分割がない場合のみ）
+      if (startAt !== undefined && duration !== undefined && captionFile !== undefined && (!captionFiles || captionFiles.length === 0)) {
         const captionInputIndex = FfmpegContextAddInput(ffmpegContext, captionFile);
         const compositeVideoId = `oc${index}`;
         ffmpegContext.filterComplex.push(
