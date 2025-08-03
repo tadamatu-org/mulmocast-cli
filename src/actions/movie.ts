@@ -118,9 +118,23 @@ const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, contex
         return captionFiles.reduce((innerAcc, captionFilePath, captionIndex) => {
           const captionInputIndex = FfmpegContextAddInput(ffmpegContext, captionFilePath);
           const compositeVideoId = `oc${index}_${captionIndex}`;
-          // 各captionファイルの表示時間を計算（分割された時間に応じて調整）
-          const captionDuration = duration / captionFiles.length;
-          const captionStartAt = startAt + captionDuration * captionIndex;
+
+          // 実際のaudioの長さを使用してcaptionの表示時間を計算
+          const beat = context.studio.beats[index];
+          let captionDuration: number;
+          let captionStartAt: number;
+
+          if (beat.splitAudioDurations && beat.splitAudioDurations.length > captionIndex) {
+            // 実際のaudioの長さを使用
+            captionDuration = beat.splitAudioDurations[captionIndex];
+            // 前のaudioファイルの長さを累積して開始時間を計算
+            captionStartAt = startAt + beat.splitAudioDurations.slice(0, captionIndex).reduce((sum, dur) => sum + dur, 0);
+          } else {
+            // フォールバック: 等間隔で分割
+            captionDuration = duration / captionFiles.length;
+            captionStartAt = startAt + captionDuration * captionIndex;
+          }
+
           ffmpegContext.filterComplex.push(
             `[${innerAcc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${captionStartAt + introPadding},${captionStartAt + captionDuration + introPadding})'[${compositeVideoId}]`,
           );
@@ -128,8 +142,8 @@ const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, contex
         }, acc);
       }
 
-      // 通常のcaptionファイルがある場合
-      if (startAt !== undefined && duration !== undefined && captionFile !== undefined) {
+      // 通常のcaptionファイルがある場合（句読点分割がない場合のみ）
+      if (startAt !== undefined && duration !== undefined && captionFile !== undefined && (!captionFiles || captionFiles.length === 0)) {
         const captionInputIndex = FfmpegContextAddInput(ffmpegContext, captionFile);
         const compositeVideoId = `oc${index}`;
         ffmpegContext.filterComplex.push(
