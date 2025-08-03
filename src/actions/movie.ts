@@ -11,6 +11,7 @@ import {
 } from "../utils/ffmpeg_utils.js";
 import { MulmoStudioContextMethods } from "../methods/mulmo_studio_context.js";
 import { splitTextByPunctuation, splitTextByEnglishPunctuation } from "../utils/string.js";
+import { generateTitle } from "./captions.js";
 
 // const isMac = process.platform === "darwin";
 const videoCodec = "libx264"; // "h264_videotoolbox" (macOS only) is too noisy
@@ -182,6 +183,30 @@ const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, contex
   return concatVideoId;
 };
 
+const addTitle = async (ffmpegContext: FfmpegContext, context: MulmoStudioContext) => {
+  try {
+    // タイトル画像を生成
+    const titleImagePath = await generateTitle(context);
+
+    // タイトル画像をFFmpegに追加（1秒間表示）
+    const titleInputIndex = FfmpegContextAddInput(ffmpegContext, titleImagePath);
+    const titleVideoId = "title_video";
+
+    // タイトルを1秒間表示するフィルター
+    ffmpegContext.filterComplex.push(`[${titleInputIndex}:v]trim=duration=1,fps=30,format=yuv420p[${titleVideoId}]`);
+
+    return titleVideoId;
+  } catch (error) {
+    console.error("Error adding title:", error);
+    // エラーの場合は黒い画面を1秒間表示
+    const blackVideoId = "black_video";
+    ffmpegContext.filterComplex.push(
+      `color=black:${context.presentationStyle.canvasSize.width}x${context.presentationStyle.canvasSize.height}:duration=1:fps=30[${blackVideoId}]`,
+    );
+    return blackVideoId;
+  }
+};
+
 const addTransitionEffects = (
   ffmpegContext: FfmpegContext,
   captionedVideoId: string,
@@ -336,7 +361,14 @@ const createVideo = async (audioArtifactFilePath: string, outputVideoPath: strin
   const filter = `${inputs}concat=n=${videoIds.length}:v=1:a=0[${concatVideoId}]`;
   ffmpegContext.filterComplex.push(filter);
 
-  const captionedVideoId = addCaptions(ffmpegContext, concatVideoId, context, caption);
+  // タイトルを最初に表示（0秒から1秒まで）
+  const titleVideoId = await addTitle(ffmpegContext, context);
+
+  // タイトルとメインコンテンツを結合
+  const titleConcatVideoId = "title_concat_video";
+  ffmpegContext.filterComplex.push(`[${titleVideoId}][${concatVideoId}]concat=n=2:v=1:a=0[${titleConcatVideoId}]`);
+
+  const captionedVideoId = addCaptions(ffmpegContext, titleConcatVideoId, context, caption);
   const mixedVideoId = addTransitionEffects(ffmpegContext, captionedVideoId, context, transitionVideoIds, beatTimestamps);
 
   GraphAILogger.log("filterComplex:", ffmpegContext.filterComplex.join("\n"));
