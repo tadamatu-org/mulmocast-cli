@@ -69,3 +69,49 @@ export const replacementsJa: Replacement[] = [
   { from: "%", to: "パーセント" },
   { from: "IPO", to: "アイピーオー" },
 ];
+
+/**
+ * 句読点でテキストを分割する
+ * @param text 分割するテキスト
+ * @returns 分割されたテキストの配列
+ */
+export const splitTextByPunctuation = (text: string): string[] => {
+  // 句読点（。、！？）で分割し、句読点を保持
+  const sentences = text.split(/([。、！？])/);
+  const result: string[] = [];
+  
+  for (let i = 0; i < sentences.length; i += 2) {
+    if (sentences[i] && sentences[i + 1]) {
+      const sentence = sentences[i] + sentences[i + 1];
+      if (sentence.trim().length >= 2) {
+        result.push(sentence);
+      }
+    } else if (sentences[i] && sentences[i].trim().length >= 2) {
+      result.push(sentences[i]);
+    }
+  }
+  
+  // 結果が空の場合は、元のテキストをそのまま返す
+  return result.length > 0 ? result : [text];
+};
+
+/**
+ * 英語の句読点でテキストを分割する
+ * @param text 分割するテキスト
+ * @returns 分割されたテキストの配列
+ */
+export const splitTextByEnglishPunctuation = (text: string): string[] => {
+  // 英語の句読点（.!?）で分割
+  const sentences = text.split(/([.!?])/);
+  const result: string[] = [];
+  
+  for (let i = 0; i < sentences.length; i += 2) {
+    if (sentences[i] && sentences[i + 1]) {
+      result.push(sentences[i] + sentences[i + 1]);
+    } else if (sentences[i]) {
+      result.push(sentences[i]);
+    }
+  }
+  
+  return result.filter(sentence => sentence.trim().length > 0);
+};
