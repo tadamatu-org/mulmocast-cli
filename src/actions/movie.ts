@@ -107,11 +107,28 @@ const getOutputOption = (audioId: string, videoId: string) => {
 };
 
 const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, context: MulmoStudioContext, caption: string | undefined) => {
-  const beatsWithCaptions = context.studio.beats.filter(({ captionFile }) => captionFile);
+  const beatsWithCaptions = context.studio.beats.filter(({ captionFile, captionFiles }) => captionFile || (captionFiles && captionFiles.length > 0));
   if (caption && beatsWithCaptions.length > 0) {
     const introPadding = context.presentationStyle.audioParams.introPadding;
     return beatsWithCaptions.reduce((acc, beat, index) => {
-      const { startAt, duration, captionFile } = beat;
+      const { startAt, duration, captionFile, captionFiles } = beat;
+
+      // 句読点分割されたcaptionがある場合はそれを使用
+      if (captionFiles && captionFiles.length > 0 && startAt !== undefined && duration !== undefined) {
+        return captionFiles.reduce((innerAcc, captionFilePath, captionIndex) => {
+          const captionInputIndex = FfmpegContextAddInput(ffmpegContext, captionFilePath);
+          const compositeVideoId = `oc${index}_${captionIndex}`;
+          // 各captionファイルの表示時間を計算（分割された時間に応じて調整）
+          const captionDuration = duration / captionFiles.length;
+          const captionStartAt = startAt + captionDuration * captionIndex;
+          ffmpegContext.filterComplex.push(
+            `[${innerAcc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${captionStartAt + introPadding},${captionStartAt + captionDuration + introPadding})'[${compositeVideoId}]`,
+          );
+          return compositeVideoId;
+        }, acc);
+      }
+
+      // 通常のcaptionファイルがある場合
       if (startAt !== undefined && duration !== undefined && captionFile !== undefined) {
         const captionInputIndex = FfmpegContextAddInput(ffmpegContext, captionFile);
         const compositeVideoId = `oc${index}`;
