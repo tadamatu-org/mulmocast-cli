@@ -19,4 +19,10 @@ export const builder = (yargs: Argv) =>
       describe: "Video captions",
       choices: languages,
       type: "string",
+    })
+    .option("ps", {
+      alias: "punctuation-split",
+      describe: "Split audio and captions by punctuation marks",
+      type: "boolean",
+      default: false,
     });
