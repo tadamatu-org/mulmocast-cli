@@ -342,7 +342,7 @@ export const mulmoCanvasDimensionSchema = z
 export const mulmoCastCreditSchema = z
   .object({
     version: z.literal("1.1"),
-    credit: z.literal("closing").optional(),
+    credit: z.enum(["closing", "none"]).optional(),
   })
   .strict();
 
