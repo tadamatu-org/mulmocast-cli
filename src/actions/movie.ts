@@ -207,30 +207,6 @@ const addTitle = async (ffmpegContext: FfmpegContext, context: MulmoStudioContex
   }
 };
 
-const addTitleOverlay = async (ffmpegContext: FfmpegContext, context: MulmoStudioContext, baseVideoId: string, duration: number = 2.0) => {
-  try {
-    // タイトル画像を生成
-    const titleImagePath = await generateTitle(context);
-
-    // タイトル画像をFFmpegに追加
-    const titleInputIndex = FfmpegContextAddInput(ffmpegContext, titleImagePath);
-    const titleOverlayId = "title_overlay";
-
-    // タイトルを指定時間表示するオーバーレイフィルター
-    ffmpegContext.filterComplex.push(`[${titleInputIndex}:v]trim=duration=${duration},fps=30,format=yuv420p[${titleOverlayId}]`);
-
-    // ベース動画にタイトルをオーバーレイ（最初の部分のみに表示）
-    const compositeVideoId = "title_composite_video";
-    ffmpegContext.filterComplex.push(`[${baseVideoId}][${titleOverlayId}]overlay=format=auto:enable='between(t,0,${duration})'[${compositeVideoId}]`);
-
-    return compositeVideoId;
-  } catch (error) {
-    console.error("Error adding title overlay:", error);
-    // エラーの場合はベース動画をそのまま返す
-    return baseVideoId;
-  }
-};
-
 const addTransitionEffects = (
   ffmpegContext: FfmpegContext,
   captionedVideoId: string,
@@ -377,48 +353,22 @@ const createVideo = async (audioArtifactFilePath: string, outputVideoPath: strin
 
   // console.log("*** images", images.audioIds);
 
-  // シーン0の画像の上にタイトルをオーバーレイ
-  let finalVideoId: string;
+  // Concatenate the trimmed images
+  const concatVideoId = "concat_video";
   const videoIds = videoIdsForBeats.filter((id) => id !== undefined); // filter out voice-over beats
 
-  if (videoIds.length > 0) {
-    const titleDisplayConfig = context.presentationStyle.movieParams?.titleDisplay;
-    const titleEnabled = titleDisplayConfig?.enabled ?? true;
-    const titleDuration = titleDisplayConfig?.duration ?? 2.0;
+  const inputs = videoIds.map((id) => `[${id}]`).join("");
+  const filter = `${inputs}concat=n=${videoIds.length}:v=1:a=0[${concatVideoId}]`;
+  ffmpegContext.filterComplex.push(filter);
 
-    if (titleEnabled) {
-      // 最初のシーンの画像の上にタイトルをオーバーレイ
-      const firstSceneWithTitle = await addTitleOverlay(ffmpegContext, context, videoIds[0], titleDuration);
+  // タイトルを最初に表示（0秒から1秒まで）
+  const titleVideoId = await addTitle(ffmpegContext, context);
 
-      // 残りのシーンを結合
-      if (videoIds.length > 1) {
-        const remainingVideoIds = videoIds.slice(1);
-        const remainingInputs = remainingVideoIds.map((id) => `[${id}]`).join("");
-        const remainingFilter = `${remainingInputs}concat=n=${remainingVideoIds.length}:v=1:a=0[remaining_concat]`;
-        ffmpegContext.filterComplex.push(remainingFilter);
+  // タイトルとメインコンテンツを結合
+  const titleConcatVideoId = "title_concat_video";
+  ffmpegContext.filterComplex.push(`[${titleVideoId}][${concatVideoId}]concat=n=2:v=1:a=0[${titleConcatVideoId}]`);
 
-        // タイトル付きの最初のシーンと残りのシーンを結合
-        const concatVideoId = "final_concat_video";
-        ffmpegContext.filterComplex.push(`[${firstSceneWithTitle}][remaining_concat]concat=n=2:v=1:a=0[${concatVideoId}]`);
-        finalVideoId = concatVideoId;
-      } else {
-        finalVideoId = firstSceneWithTitle;
-      }
-    } else {
-      // タイトルなしで通常の結合
-      const inputs = videoIds.map((id) => `[${id}]`).join("");
-      const filter = `${inputs}concat=n=${videoIds.length}:v=1:a=0[${(finalVideoId = "concat_video")}]`;
-      ffmpegContext.filterComplex.push(filter);
-    }
-  } else {
-    // ビデオがない場合
-    finalVideoId = "concat_video";
-    ffmpegContext.filterComplex.push(
-      `color=black:${context.presentationStyle.canvasSize.width}x${context.presentationStyle.canvasSize.height}:duration=1:fps=30[${finalVideoId}]`,
-    );
-  }
-
-  const captionedVideoId = addCaptions(ffmpegContext, finalVideoId, context, caption);
+  const captionedVideoId = addCaptions(ffmpegContext, titleConcatVideoId, context, caption);
   const mixedVideoId = addTransitionEffects(ffmpegContext, captionedVideoId, context, transitionVideoIds, beatTimestamps);
 
   GraphAILogger.log("filterComplex:", ffmpegContext.filterComplex.join("\n"));
