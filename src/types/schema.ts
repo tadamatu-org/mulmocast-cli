@@ -465,8 +465,6 @@ export const mulmoStudioBeatSchema = z
     lipSyncFile: z.string().optional(), // path to the lip sync file
     captionFile: z.string().optional(), // path to the caption image
     captionFiles: z.array(z.string()).optional(), // array of caption image paths for punctuation split
-    splitAudioFiles: z.array(z.string()).optional(), // array of split audio file paths
-    splitAudioDurations: z.array(z.number()).optional(), // array of split audio durations
   })
   .strict();
 
