@@ -6,7 +6,7 @@ import { getHTMLFile, getCaptionImagePath, getCaptionImagePathWithSentence, getO
 import { renderHTMLToImage, interpolate } from "../utils/markdown.js";
 import { MulmoStudioContextMethods, MulmoPresentationStyleMethods } from "../methods/index.js";
 import { fileWriteAgent } from "@graphai/vanilla_node_agents";
-import { splitTextByPunctuation, splitTextByEnglishPunctuation, highlightImportantWords } from "../utils/string.js";
+import { splitTextByPunctuation, splitTextByEnglishPunctuation, highlightImportantWords, highlightImportantWordsWithAI } from "../utils/string.js";
 
 const vanillaAgents = agents.default ?? agents;
 
@@ -45,8 +45,8 @@ const graph_data: GraphData = {
                   GraphAILogger.warn(`No multiLingual caption found for beat ${index}, lang: ${captionParams.lang}`);
                   return beat.text;
                 })();
-                // 重要な文字を黄色にハイライト
-                const highlightedText = highlightImportantWords(text);
+                // 重要な文字をAIで分析してハイライト
+                const highlightedText = await highlightImportantWordsWithAI(text);
                 const htmlData = interpolate(template, {
                   caption: highlightedText,
                   width: `${canvasSize.width}`,
@@ -146,8 +146,8 @@ export const captionsWithPunctuationSplit = async (context: MulmoStudioContext, 
             return sentence;
           })();
 
-          // 重要な文字を黄色にハイライト
-          const highlightedText = highlightImportantWords(captionText);
+          // 重要な文字をAIで分析してハイライト
+          const highlightedText = await highlightImportantWordsWithAI(captionText);
           const htmlData = interpolate(template, {
             caption: highlightedText,
             width: `${canvasSize.width}`,
