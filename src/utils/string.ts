@@ -79,7 +79,7 @@ export const splitTextByPunctuation = (text: string): string[] => {
   // 句読点（。、！？）で分割し、句読点を保持
   const sentences = text.split(/([。、！？])/);
   const result: string[] = [];
-  
+
   for (let i = 0; i < sentences.length; i += 2) {
     if (sentences[i] && sentences[i + 1]) {
       const sentence = sentences[i] + sentences[i + 1];
@@ -90,7 +90,7 @@ export const splitTextByPunctuation = (text: string): string[] => {
       result.push(sentences[i]);
     }
   }
-  
+
   // 結果が空の場合は、元のテキストをそのまま返す
   return result.length > 0 ? result : [text];
 };
@@ -104,7 +104,7 @@ export const splitTextByEnglishPunctuation = (text: string): string[] => {
   // 英語の句読点（.!?）で分割
   const sentences = text.split(/([.!?])/);
   const result: string[] = [];
-  
+
   for (let i = 0; i < sentences.length; i += 2) {
     if (sentences[i] && sentences[i + 1]) {
       result.push(sentences[i] + sentences[i + 1]);
@@ -112,6 +112,95 @@ export const splitTextByEnglishPunctuation = (text: string): string[] => {
       result.push(sentences[i]);
     }
   }
-  
-  return result.filter(sentence => sentence.trim().length > 0);
+
+  return result.filter((sentence) => sentence.trim().length > 0);
+};
+
+/**
+ * 重要なキーワードのパターン定義
+ */
+const CRITICAL_PATTERNS = [
+  // 最重要：数字（金額、パーセンテージ、年号など）
+  { pattern: /\d+[億万]?円/g, weight: 5 },
+  { pattern: /\d+%/g, weight: 5 },
+  { pattern: /\d{4}年/g, weight: 5 },
+];
+
+const IMPORTANT_PATTERNS = [
+  // 重要：重要な形容詞
+  { pattern: /(画期的|革新的|初めて|初|最大|最小|最高|最低|重要|緊急|危険|成功|失敗|新|旧)/g, weight: 4 },
+  // 重要：重要な名詞
+  { pattern: /(実験|技術|開発|研究|発見|発明|導入|開始|終了|完了|発表)/g, weight: 3 },
+  // 重要：人名、地名、会社名（大文字で始まる）
+  { pattern: /[A-Z][a-z]+/g, weight: 2 },
+  // 重要：カタカナ（外来語、専門用語）
+  { pattern: /[ァ-ヶー]+/g, weight: 2 },
+];
+
+/**
+ * テキストの重要度を分析してハイライトする
+ * @param text 元のテキスト
+ * @param options オプション設定
+ * @returns マークアップされたHTML
+ */
+export const highlightImportantWords = (
+  text: string,
+  options: {
+    criticalClass?: string;
+    importantClass?: string;
+    minImportance?: number;
+  } = {},
+): string => {
+  const { criticalClass = "highlight-critical", importantClass = "highlight-important", minImportance = 2 } = options;
+
+  let highlightedText = text;
+
+  // 最重要パターン（赤色）
+  CRITICAL_PATTERNS.forEach(({ pattern, weight }) => {
+    if (weight >= minImportance) {
+      highlightedText = highlightedText.replace(pattern, (match) => {
+        return `<span class="${criticalClass}">${match}</span>`;
+      });
+    }
+  });
+
+  // 重要パターン（黄色）
+  IMPORTANT_PATTERNS.forEach(({ pattern, weight }) => {
+    if (weight >= minImportance) {
+      highlightedText = highlightedText.replace(pattern, (match) => {
+        return `<span class="${importantClass}">${match}</span>`;
+      });
+    }
+  });
+
+  return highlightedText;
+};
+
+/**
+ * 文の重要度を分析して重要な部分を特定する
+ * @param text 分析するテキスト
+ * @returns 重要度スコア付きの単語配列
+ */
+export const analyzeTextImportance = (text: string): Array<{ word: string; importance: number }> => {
+  const words = text.split(/\s+/);
+
+  return words.map((word) => {
+    let importance = 0;
+
+    // 最重要パターンで重要度を計算
+    CRITICAL_PATTERNS.forEach(({ pattern, weight }) => {
+      if (pattern.test(word)) {
+        importance += weight;
+      }
+    });
+
+    // 重要パターンで重要度を計算
+    IMPORTANT_PATTERNS.forEach(({ pattern, weight }) => {
+      if (pattern.test(word)) {
+        importance += weight;
+      }
+    });
+
+    return { word, importance };
+  });
 };
