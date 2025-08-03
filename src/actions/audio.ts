@@ -302,7 +302,7 @@ export const generateBeatAudioWithPunctuationSplit = async (index: number, conte
     const studioBeat = context.studio.beats[index];
     
     // テキストを句読点で分割
-    const text = localizedText(beat, context.multiLingual, context.lang);
+    const text = localizedText(beat, context.multiLingual[index], context.lang);
     const sentences = context.lang === "ja" 
       ? splitTextByPunctuation(text)
       : splitTextByEnglishPunctuation(text);

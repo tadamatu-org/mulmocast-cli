@@ -2,7 +2,7 @@ import { MulmoStudioContext, MulmoBeat, mulmoCaptionParamsSchema } from "../type
 import { GraphAI, GraphAILogger } from "graphai";
 import type { GraphData, CallbackFunction } from "graphai";
 import * as agents from "@graphai/vanilla";
-import { getHTMLFile, getCaptionImagePath, getOutputStudioFilePath } from "../utils/file.js";
+import { getHTMLFile, getCaptionImagePath, getCaptionImagePathWithSentence, getOutputStudioFilePath } from "../utils/file.js";
 import { renderHTMLToImage, interpolate } from "../utils/markdown.js";
 import { MulmoStudioContextMethods, MulmoPresentationStyleMethods } from "../methods/index.js";
 import { fileWriteAgent } from "@graphai/vanilla_node_agents";
@@ -131,7 +131,7 @@ export const captionsWithPunctuationSplit = async (context: MulmoStudioContext, 
           });
           
           const canvasSize = MulmoPresentationStyleMethods.getCanvasSize(context.presentationStyle);
-          const imagePath = getCaptionImagePath(context, `${beatIndex}-${sentenceIndex}`);
+          const imagePath = getCaptionImagePathWithSentence(context, beatIndex, sentenceIndex);
           const template = getHTMLFile("caption");
           
           const captionText = (() => {
@@ -159,7 +159,7 @@ export const captionsWithPunctuationSplit = async (context: MulmoStudioContext, 
           if (!context.studio.beats[beatIndex].captionFiles) {
             context.studio.beats[beatIndex].captionFiles = [];
           }
-          context.studio.beats[beatIndex].captionFiles.push(imagePath);
+          context.studio.beats[beatIndex].captionFiles?.push(imagePath);
         }
       }
       
