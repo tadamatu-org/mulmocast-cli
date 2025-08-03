@@ -19,6 +19,7 @@ import { text2hash, localizedText, settings2GraphAIConfig } from "../utils/utils
 import { provider2TTSAgent } from "../utils/provider2agent.js";
 import { MulmoStudioContextMethods } from "../methods/mulmo_studio_context.js";
 import { MulmoMediaSourceMethods } from "../methods/mulmo_media_source.js";
+import { splitTextByPunctuation, splitTextByEnglishPunctuation } from "../utils/string.js";
 
 const vanillaAgents = agents.default ?? agents;
 
@@ -291,5 +292,70 @@ export const audio = async (context: MulmoStudioContext, settings?: Record<strin
   } catch (__error) {
     MulmoStudioContextMethods.setSessionState(context, "audio", false);
     throw __error;
+  }
+};
+
+export const generateBeatAudioWithPunctuationSplit = async (index: number, context: MulmoStudioContext, settings?: Record<string, string>, callbacks?: CallbackFunction[]) => {
+  try {
+    MulmoStudioContextMethods.setSessionState(context, "audio", true);
+    const beat = context.studio.script.beats[index];
+    const studioBeat = context.studio.beats[index];
+    
+    // テキストを句読点で分割
+    const text = localizedText(beat, context.multiLingual, context.lang);
+    const sentences = context.lang === "ja" 
+      ? splitTextByPunctuation(text)
+      : splitTextByEnglishPunctuation(text);
+    
+    const audioFiles: string[] = [];
+    
+    // 各文に対してaudioを生成
+    for (let i = 0; i < sentences.length; i++) {
+      const sentence = sentences[i];
+      const sentenceBeat = { ...beat, text: sentence };
+      const sentenceStudioBeat = { ...studioBeat };
+      
+      const fileName = MulmoStudioContextMethods.getFileName(context);
+      const audioDirPath = MulmoStudioContextMethods.getAudioDirPath(context);
+      const outDirPath = MulmoStudioContextMethods.getOutDirPath(context);
+      const audioSegmentDirPath = resolveDirPath(audioDirPath, fileName);
+
+      mkdir(outDirPath);
+      mkdir(audioSegmentDirPath);
+
+      const config = settings2GraphAIConfig(settings);
+      const taskManager = new TaskManager(getConcurrency(context));
+      const graph = new GraphAI(graph_tts, audioAgents, { agentFilters, taskManager, config });
+      graph.injectValue("__mapIndex", `${index}-${i}`);
+      graph.injectValue("beat", sentenceBeat);
+      graph.injectValue("studioBeat", sentenceStudioBeat);
+      graph.injectValue("multiLingual", context.multiLingual);
+      graph.injectValue("context", context);
+
+      if (callbacks) {
+        callbacks.forEach((callback) => {
+          graph.registerCallback(callback);
+        });
+      }
+      
+      await graph.run();
+      
+      if (sentenceStudioBeat.audioFile) {
+        audioFiles.push(sentenceStudioBeat.audioFile);
+      }
+    }
+    
+    // 分割されたaudioファイルを結合
+    if (audioFiles.length > 0) {
+      const combinedAudioPath = getBeatAudioPath(text, context, beat, context.lang);
+      if (combinedAudioPath) {
+        // ここでaudioファイルを結合する処理を追加
+        // 現在は個別のファイルとして保存
+        studioBeat.audioFile = combinedAudioPath;
+      }
+    }
+    
+  } finally {
+    MulmoStudioContextMethods.setSessionState(context, "audio", false);
   }
 };
