@@ -27,7 +27,7 @@ export const createTitleBeat = (title: string): MulmoBeat => {
     // タイトルは句読点分割しない
     noPunctuationSplit: true,
     // introPaddingを考慮して負の値で開始（0秒からcaptionを表示するため）
-    startAt: -1.0,
+    startAt: -1.5,
     // タイトル用の特別な設定
     duration: undefined, // 音声の長さに合わせて自動設定
   };

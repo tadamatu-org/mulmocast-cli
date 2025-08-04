@@ -171,8 +171,13 @@ const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, contex
       if (startAt !== undefined && duration !== undefined && captionFile !== undefined && (!captionFiles || captionFiles.length === 0)) {
         const captionInputIndex = FfmpegContextAddInput(ffmpegContext, captionFile);
         const compositeVideoId = `oc${index}`;
+        const captionStartTime = startAt + introPadding;
+        const captionEndTime = startAt + duration + introPadding;
+        GraphAILogger.info(
+          `Caption timing for beat ${index}: startAt=${startAt}, duration=${duration}, introPadding=${introPadding}, captionStartTime=${captionStartTime}, captionEndTime=${captionEndTime}`,
+        );
         ffmpegContext.filterComplex.push(
-          `[${acc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${startAt + introPadding},${startAt + duration + introPadding})'[${compositeVideoId}]`,
+          `[${acc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${captionStartTime},${captionEndTime})'[${compositeVideoId}]`,
         );
         return compositeVideoId;
       }
