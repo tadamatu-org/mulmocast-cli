@@ -144,6 +144,13 @@ const generateTitleAudio = async (context: MulmoStudioContext): Promise<{ audioP
     const titleBeat = {
       text: title,
       speaker: "Presenter",
+      image: {
+        type: "image" as const,
+        source: {
+          kind: "text" as const,
+          text: "タイトル用の背景画像",
+        },
+      },
       audioParams: {
         padding: 0.0,
         movieVolume: 1.0,
@@ -437,6 +444,26 @@ const createVideo = async (audioArtifactFilePath: string, outputVideoPath: strin
 
       // シーン0の画像を背景として使用したタイトル表示（実際の音声長に合わせて）
       const titleWithBackground = await addTitleOverlay(ffmpegContext, context, videoIds[0], titleDuration);
+
+      // タイトル音声を動画に含める
+      let titleAudioResult: { audioPath: string; duration: number } | null = null;
+      try {
+        titleAudioResult = await generateTitleAudio(context);
+      } catch (error) {
+        console.error("Error generating title audio:", error);
+      }
+
+      if (titleAudioResult && titleAudioResult.audioPath) {
+        const titleAudioInputIndex = FfmpegContextAddInput(ffmpegContext, titleAudioResult.audioPath);
+        const titleAudioId = `${titleAudioInputIndex}:a`;
+
+        // タイトル動画に音声を追加
+        const titleWithAudioId = "title_with_audio";
+        ffmpegContext.filterComplex.push(`[${titleWithBackground}][${titleAudioId}]concat=n=1:v=1:a=1[${titleWithAudioId}]`);
+        finalVideoId = titleWithAudioId;
+      } else {
+        finalVideoId = titleWithBackground;
+      }
 
       // 残りのシーンを結合
       if (videoIds.length > 1) {
