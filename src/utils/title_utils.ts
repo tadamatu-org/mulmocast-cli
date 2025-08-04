@@ -8,7 +8,7 @@ import { MulmoBeat } from "../types/index.js";
 export const createTitleBeat = (title: string): MulmoBeat => {
   return {
     text: title,
-    imagePrompt: "タイトル用の背景画像",
+    imagePrompt: title,
     audioParams: {
       padding: 0.0,
       movieVolume: 1.0,
@@ -21,13 +21,13 @@ export const createTitleBeat = (title: string): MulmoBeat => {
         "text-stroke: 2px #1A1A1A;",
         "font-size: 128px;",
         "line-height: 1.1;",
-        "margin-bottom: 40%;",
+        "margin-bottom: 55%;",
       ],
     },
     // タイトルは句読点分割しない
     noPunctuationSplit: true,
-    // 0秒から開始
-    startAt: 0,
+    // introPaddingを考慮して負の値で開始（0秒からcaptionを表示するため）
+    startAt: -1.0,
     // タイトル用の特別な設定
     duration: undefined, // 音声の長さに合わせて自動設定
   };
