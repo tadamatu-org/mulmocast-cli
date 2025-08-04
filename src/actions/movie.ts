@@ -113,12 +113,10 @@ const addTitleOverlay = async (ffmpegContext: FfmpegContext, context: MulmoStudi
   try {
     // タイトル画像を生成
     const titleImagePath = await generateTitle(context);
-    GraphAILogger.info(`Title image generated: ${titleImagePath}`);
 
     // タイトル画像をFFmpegに追加
     const titleInputIndex = FfmpegContextAddInput(ffmpegContext, titleImagePath);
     const titleOverlayId = "title_overlay";
-    GraphAILogger.info(`Title input index: ${titleInputIndex}, baseVideoId: ${baseVideoId}`);
 
     // タイトルを指定時間表示するオーバーレイフィルター
     ffmpegContext.filterComplex.push(`[${titleInputIndex}:v]trim=duration=${duration},fps=30,format=yuv420p[${titleOverlayId}]`);
@@ -126,10 +124,6 @@ const addTitleOverlay = async (ffmpegContext: FfmpegContext, context: MulmoStudi
     // ベース動画（image0）を背景として使用し、タイトルをオーバーレイ
     const compositeVideoId = "title_composite_video";
     ffmpegContext.filterComplex.push(`[${baseVideoId}][${titleOverlayId}]overlay=format=auto:enable='between(t,0,${duration})'[${compositeVideoId}]`);
-
-    GraphAILogger.info(
-      `Title overlay filter added: [${baseVideoId}][${titleOverlayId}]overlay=format=auto:enable='between(t,0,${duration})'[${compositeVideoId}]`,
-    );
 
     return compositeVideoId;
   } catch (error) {
@@ -150,6 +144,13 @@ const generateTitleAudio = async (context: MulmoStudioContext): Promise<{ audioP
     const titleBeat = {
       text: title,
       speaker: "Presenter",
+      image: {
+        type: "image" as const,
+        source: {
+          kind: "text" as const,
+          text: "タイトル用の背景画像",
+        },
+      },
       audioParams: {
         padding: 0.0,
         movieVolume: 1.0,
@@ -448,7 +449,6 @@ const createVideo = async (audioArtifactFilePath: string, outputVideoPath: strin
       let titleAudioResult: { audioPath: string; duration: number } | null = null;
       try {
         titleAudioResult = await generateTitleAudio(context);
-        GraphAILogger.info(`Title audio generated: ${titleAudioResult?.audioPath}, duration: ${titleAudioResult?.duration}`);
       } catch (error) {
         console.error("Error generating title audio:", error);
       }
@@ -456,15 +456,12 @@ const createVideo = async (audioArtifactFilePath: string, outputVideoPath: strin
       if (titleAudioResult && titleAudioResult.audioPath) {
         const titleAudioInputIndex = FfmpegContextAddInput(ffmpegContext, titleAudioResult.audioPath);
         const titleAudioId = `${titleAudioInputIndex}:a`;
-        GraphAILogger.info(`Title audio input index: ${titleAudioInputIndex}, titleAudioId: ${titleAudioId}`);
 
         // タイトル動画に音声を追加
         const titleWithAudioId = "title_with_audio";
         ffmpegContext.filterComplex.push(`[${titleWithBackground}][${titleAudioId}]concat=n=1:v=1:a=1[${titleWithAudioId}]`);
-        GraphAILogger.info(`Title audio filter added: [${titleWithBackground}][${titleAudioId}]concat=n=1:v=1:a=1[${titleWithAudioId}]`);
         finalVideoId = titleWithAudioId;
       } else {
-        GraphAILogger.info(`No title audio, using titleWithBackground: ${titleWithBackground}`);
         finalVideoId = titleWithBackground;
       }
 
