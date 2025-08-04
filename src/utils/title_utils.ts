@@ -1,0 +1,51 @@
+import { MulmoBeat } from "../types/index.js";
+
+/**
+ * タイトル用のbeatを生成する
+ * @param title タイトル文字列
+ * @returns タイトル用のbeat
+ */
+export const createTitleBeat = (title: string): MulmoBeat => {
+  return {
+    text: title,
+    image: {
+      type: "image" as const,
+      source: {
+        kind: "text" as const,
+        text: "タイトル用の背景画像",
+      },
+    },
+    audioParams: {
+      padding: 0.0,
+      movieVolume: 1.0,
+    },
+    captionParams: {
+      lang: "ja",
+      styles: [
+        "background: transparent;",
+        "-webkit-text-stroke: 2px #1A1A1A;",
+        "text-stroke: 2px #1A1A1A;",
+        "font-size: 128px;",
+        "line-height: 1.1;",
+        "margin-bottom: 40%;",
+      ],
+    },
+    // タイトルは句読点分割しない
+    noPunctuationSplit: true,
+    // 0秒から開始
+    startAt: 0,
+    // タイトル用の特別な設定
+    duration: undefined, // 音声の長さに合わせて自動設定
+  };
+};
+
+/**
+ * 既存のbeatsにタイトルbeatを追加する
+ * @param originalBeats 元のbeats配列
+ * @param title タイトル文字列
+ * @returns タイトルbeatが追加されたbeats配列
+ */
+export const addTitleToBeats = (originalBeats: MulmoBeat[], title: string): MulmoBeat[] => {
+  const titleBeat = createTitleBeat(title);
+  return [titleBeat, ...originalBeats];
+};
