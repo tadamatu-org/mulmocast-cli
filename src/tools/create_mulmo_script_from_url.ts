@@ -296,5 +296,29 @@ export const createMulmoScriptFromFile = async (
     showErrorMessage("Script generation failed. Please try again.");
     return;
   }
+
+  // 生成されたスクリプトにタイトルを追加
+  const scriptPath = result.writeJSON.path;
+  console.log(`Adding title to script: ${scriptPath}`);
+
+  try {
+    const { readAndParseJson } = await import("../utils/file.js");
+    const { mulmoScriptSchema } = await import("../types/schema.js");
+    const script = readAndParseJson(scriptPath, mulmoScriptSchema);
+    console.log(`Original beats count: ${script.beats.length}`);
+
+    // タイトルをbeatsの最初に追加
+    const { addTitleToBeats } = await import("../utils/title_utils.js");
+    script.beats = addTitleToBeats(script.beats, script.title || "タイトル");
+    console.log(`Updated beats count: ${script.beats.length}`);
+
+    // 修正されたスクリプトを保存
+    const fs = await import("fs");
+    fs.writeFileSync(scriptPath, JSON.stringify(script, null, 2));
+    console.log(`Script updated with title beat`);
+  } catch (error) {
+    console.error("Error adding title to script:", error);
+  }
+
   writingMessage(result?.writeJSON?.path ?? "");
 };
