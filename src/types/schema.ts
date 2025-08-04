@@ -327,6 +327,8 @@ export const mulmoBeatSchema = z
     soundEffectPrompt: z.string().optional(),
     htmlPrompt: htmlPromptParamsSchema.optional(),
     enableLipSync: z.boolean().optional().describe("Enable lip sync generation for this beat"),
+    noPunctuationSplit: z.boolean().optional().describe("Skip punctuation splitting for this beat (used for titles)"),
+    startAt: z.number().optional().describe("Start time for this beat in seconds"),
   })
   .strict();
 

@@ -319,5 +319,20 @@ export const storyToScript = async ({
   graph.registerCallback(cliLoadingPlugin({ nodeId: "script", message: "Generating script..." }));
 
   const result = await graph.run<{ path: string }>();
+
+  // 生成されたスクリプトにタイトルを追加
+  if (result?.writeJSON?.path) {
+    const scriptPath = result.writeJSON.path;
+    const script = readAndParseJson(scriptPath, mulmoScriptSchema);
+
+    // タイトルをbeatsの最初に追加
+    const { addTitleToBeats } = await import("../utils/title_utils.js");
+    script.beats = addTitleToBeats(script.beats, story.title);
+
+    // 修正されたスクリプトを保存
+    const fs = await import("fs");
+    fs.writeFileSync(scriptPath, JSON.stringify(script, null, 2));
+  }
+
   writingMessage(result?.writeJSON?.path ?? "");
 };

@@ -119,8 +119,14 @@ export const captionsWithPunctuationSplit = async (context: MulmoStudioContext, 
         const beat = context.studio.script.beats[beatIndex];
         const text = beat.text;
 
-        // テキストを句読点で分割
-        const sentences = context.lang === "ja" ? splitTextByPunctuation(text) : splitTextByEnglishPunctuation(text);
+        // タイトルbeat（noPunctuationSplitがtrue）の場合は分割しない
+        let sentences: string[];
+        if ((beat as any).noPunctuationSplit) {
+          sentences = [text]; // 分割せずに全文を1つの文として扱う
+        } else {
+          // テキストを句読点で分割
+          sentences = context.lang === "ja" ? splitTextByPunctuation(text) : splitTextByEnglishPunctuation(text);
+        }
 
         // 各文に対してcaptionを生成
         for (let sentenceIndex = 0; sentenceIndex < sentences.length; sentenceIndex++) {
