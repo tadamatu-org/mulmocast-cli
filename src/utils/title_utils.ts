@@ -8,7 +8,7 @@ import { MulmoBeat } from "../types/index.js";
 export const createTitleBeat = (title: string): MulmoBeat => {
   return {
     text: title,
-    imagePrompt: title,
+    imagePrompt: `${title} （イメージ作成に文字は使用しないこと）`,
     audioParams: {
       padding: 0.0,
       movieVolume: 1.0,
