@@ -11,6 +11,7 @@ import {
 } from "../utils/ffmpeg_utils.js";
 import { MulmoStudioContextMethods } from "../methods/mulmo_studio_context.js";
 import { splitTextByPunctuation, splitTextByEnglishPunctuation } from "../utils/string.js";
+import { generateTitle } from "./captions.js";
 
 // const isMac = process.platform === "darwin";
 const videoCodec = "libx264"; // "h264_videotoolbox" (macOS only) is too noisy
@@ -107,10 +108,39 @@ const getOutputOption = (audioId: string, videoId: string) => {
   ];
 };
 
+const addTitleOverlay = async (ffmpegContext: FfmpegContext, context: MulmoStudioContext, baseVideoId: string, duration: number = 2.0) => {
+  try {
+    // タイトル画像を生成
+    const titleImagePath = await generateTitle(context);
+
+    // タイトル画像をFFmpegに追加
+    const titleInputIndex = FfmpegContextAddInput(ffmpegContext, titleImagePath);
+    const titleOverlayId = "title_overlay";
+
+    // タイトルを指定時間表示するオーバーレイフィルター
+    ffmpegContext.filterComplex.push(`[${titleInputIndex}:v]trim=duration=${duration},fps=30,format=yuv420p[${titleOverlayId}]`);
+
+    // ベース動画（image0）を背景として使用し、タイトルをオーバーレイ
+    const compositeVideoId = "title_composite_video";
+    ffmpegContext.filterComplex.push(`[${baseVideoId}][${titleOverlayId}]overlay=format=auto:enable='between(t,0,${duration})'[${compositeVideoId}]`);
+
+    return compositeVideoId;
+  } catch (error) {
+    console.error("Error adding title overlay:", error);
+    // エラーの場合はベース動画をそのまま返す
+    return baseVideoId;
+  }
+};
+
 const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, context: MulmoStudioContext, caption: string | undefined) => {
   const beatsWithCaptions = context.studio.beats.filter(({ captionFile, captionFiles }) => captionFile || (captionFiles && captionFiles.length > 0));
   if (caption && beatsWithCaptions.length > 0) {
     const introPadding = context.presentationStyle.audioParams.introPadding;
+    const titleDisplayConfig = context.presentationStyle.movieParams?.titleDisplay;
+    const titleEnabled = titleDisplayConfig?.enabled ?? true;
+    const titleDuration = titleDisplayConfig?.duration ?? 2.0;
+    const titleOffset = titleEnabled ? titleDuration : 0;
+
     return beatsWithCaptions.reduce((acc, beat, index) => {
       const { startAt, duration, captionFile, captionFiles } = beat;
 
@@ -157,11 +187,14 @@ const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, contex
             }
           }
 
+          // タイトル表示時間を考慮してcaptionの開始時間を調整
+          const adjustedStartAt = captionStartAt + titleOffset;
+
           ffmpegContext.filterComplex.push(
-            `[${innerAcc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${captionStartAt + introPadding},${captionStartAt + captionDuration + introPadding})'[${compositeVideoId}]`,
+            `[${innerAcc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${adjustedStartAt + introPadding},${adjustedStartAt + captionDuration + introPadding})'[${compositeVideoId}]`,
           );
           GraphAILogger.info(
-            `Added filter for caption ${index}-${captionIndex}: between(t,${captionStartAt + introPadding},${captionStartAt + captionDuration + introPadding})`,
+            `Added filter for caption ${index}-${captionIndex}: between(t,${adjustedStartAt + introPadding},${adjustedStartAt + captionDuration + introPadding})`,
           );
           return compositeVideoId;
         }, acc);
@@ -171,8 +204,12 @@ const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, contex
       if (startAt !== undefined && duration !== undefined && captionFile !== undefined && (!captionFiles || captionFiles.length === 0)) {
         const captionInputIndex = FfmpegContextAddInput(ffmpegContext, captionFile);
         const compositeVideoId = `oc${index}`;
+
+        // タイトル表示時間を考慮してcaptionの開始時間を調整
+        const adjustedStartAt = startAt + titleOffset;
+
         ffmpegContext.filterComplex.push(
-          `[${acc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${startAt + introPadding},${startAt + duration + introPadding})'[${compositeVideoId}]`,
+          `[${acc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${adjustedStartAt + introPadding},${adjustedStartAt + duration + introPadding})'[${compositeVideoId}]`,
         );
         return compositeVideoId;
       }
@@ -328,15 +365,48 @@ const createVideo = async (audioArtifactFilePath: string, outputVideoPath: strin
 
   // console.log("*** images", images.audioIds);
 
-  // Concatenate the trimmed images
-  const concatVideoId = "concat_video";
+  // タイトル表示とシーン0の順序制御
+  let finalVideoId: string;
   const videoIds = videoIdsForBeats.filter((id) => id !== undefined); // filter out voice-over beats
 
-  const inputs = videoIds.map((id) => `[${id}]`).join("");
-  const filter = `${inputs}concat=n=${videoIds.length}:v=1:a=0[${concatVideoId}]`;
-  ffmpegContext.filterComplex.push(filter);
+  if (videoIds.length > 0) {
+    const titleDisplayConfig = context.presentationStyle.movieParams?.titleDisplay;
+    const titleEnabled = titleDisplayConfig?.enabled ?? true;
+    const titleDuration = titleDisplayConfig?.duration ?? 2.0;
 
-  const captionedVideoId = addCaptions(ffmpegContext, concatVideoId, context, caption);
+    if (titleEnabled) {
+      // シーン0の画像を背景として使用したタイトル表示（2秒間）
+      const titleWithBackground = await addTitleOverlay(ffmpegContext, context, videoIds[0], titleDuration);
+
+      // 残りのシーンを結合
+      if (videoIds.length > 1) {
+        const remainingVideoIds = videoIds.slice(1);
+        const remainingInputs = remainingVideoIds.map((id) => `[${id}]`).join("");
+        const remainingFilter = `${remainingInputs}concat=n=${remainingVideoIds.length}:v=1:a=0[remaining_concat]`;
+        ffmpegContext.filterComplex.push(remainingFilter);
+
+        // タイトル付きシーン + 残りのシーンを結合
+        const concatVideoId = "final_concat_video";
+        ffmpegContext.filterComplex.push(`[${titleWithBackground}][remaining_concat]concat=n=2:v=1:a=0[${concatVideoId}]`);
+        finalVideoId = concatVideoId;
+      } else {
+        finalVideoId = titleWithBackground;
+      }
+    } else {
+      // タイトルなしで通常の結合
+      const inputs = videoIds.map((id) => `[${id}]`).join("");
+      const filter = `${inputs}concat=n=${videoIds.length}:v=1:a=0[${(finalVideoId = "concat_video")}]`;
+      ffmpegContext.filterComplex.push(filter);
+    }
+  } else {
+    // ビデオがない場合
+    finalVideoId = "concat_video";
+    ffmpegContext.filterComplex.push(
+      `color=black:${context.presentationStyle.canvasSize.width}x${context.presentationStyle.canvasSize.height}:duration=1:fps=30[${finalVideoId}]`,
+    );
+  }
+
+  const captionedVideoId = addCaptions(ffmpegContext, finalVideoId, context, caption);
   const mixedVideoId = addTransitionEffects(ffmpegContext, captionedVideoId, context, transitionVideoIds, beatTimestamps);
 
   GraphAILogger.log("filterComplex:", ffmpegContext.filterComplex.join("\n"));
@@ -344,7 +414,21 @@ const createVideo = async (audioArtifactFilePath: string, outputVideoPath: strin
   const audioIndex = FfmpegContextAddInput(ffmpegContext, audioArtifactFilePath); // Add audio input
   const artifactAudioId = `${audioIndex}:a`;
 
-  const ffmpegContextAudioId = mixAudiosFromMovieBeats(ffmpegContext, artifactAudioId, audioIdsFromMovieBeats);
+  // タイトル表示時間を考慮してオーディオを遅延
+  const titleDisplayConfig = context.presentationStyle.movieParams?.titleDisplay;
+  const titleEnabled = titleDisplayConfig?.enabled ?? true;
+  const titleDuration = titleDisplayConfig?.duration ?? 2.0;
+  const titleOffset = titleEnabled ? titleDuration : 0;
+
+  let finalAudioId = artifactAudioId;
+  if (titleOffset > 0) {
+    // タイトル表示時間分だけオーディオを遅延
+    const delayedAudioId = "delayed_audio";
+    ffmpegContext.filterComplex.push(`[${artifactAudioId}]adelay=${Math.round(titleOffset * 1000)}|${Math.round(titleOffset * 1000)}[${delayedAudioId}]`);
+    finalAudioId = `[${delayedAudioId}]`;
+  }
+
+  const ffmpegContextAudioId = mixAudiosFromMovieBeats(ffmpegContext, finalAudioId, audioIdsFromMovieBeats);
 
   // GraphAILogger.debug("filterComplex", ffmpegContext.filterComplex);
 
