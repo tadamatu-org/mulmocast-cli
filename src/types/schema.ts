@@ -375,12 +375,6 @@ export const mulmoMovieParamsSchema = z
     model: z.string().optional(), // default: provider specific. for agent
     transition: mulmoTransitionSchema.optional(), // for movie.ts
     fillOption: mulmoFillOptionSchema.optional(), // for movie.ts
-    titleDisplay: z
-      .object({
-        duration: z.number().default(2.0).describe("Duration of title overlay display in seconds"),
-        enabled: z.boolean().default(true).describe("Enable title overlay on first scene"),
-      })
-      .optional(),
   })
   .strict();
 
