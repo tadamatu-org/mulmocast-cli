@@ -146,6 +146,8 @@ const generateTitleAudio = async (context: MulmoStudioContext): Promise<{ audioP
       throw new Error("Title is not defined in script");
     }
 
+    GraphAILogger.info(`Generating title audio for: "${title}"`);
+
     // タイトル音声を生成するための一時的なbeatを作成
     const titleBeat = {
       text: title,
@@ -155,6 +157,8 @@ const generateTitleAudio = async (context: MulmoStudioContext): Promise<{ audioP
         movieVolume: 1.0,
       },
     };
+
+    GraphAILogger.info(`Created title beat: ${JSON.stringify(titleBeat)}`);
 
     // 音声生成のためのコンテキストを作成
     const audioContext = {
@@ -168,12 +172,16 @@ const generateTitleAudio = async (context: MulmoStudioContext): Promise<{ audioP
       },
     };
 
+    GraphAILogger.info(`Audio context created with ${audioContext.studio.script.beats.length} beats`);
+
     // 音声生成を実行
     const audioResult = await audio(audioContext);
 
     // タイトル音声ファイルのパスと長さを返す
     const audioPath = audioResult.studio.beats[0].audioFile || "";
     const duration = audioResult.studio.beats[0].duration || 2.0;
+
+    GraphAILogger.info(`Title audio result: path=${audioPath}, duration=${duration}`);
 
     return { audioPath, duration };
   } catch (error) {
@@ -442,6 +450,7 @@ const createVideo = async (audioArtifactFilePath: string, outputVideoPath: strin
       }
 
       // シーン0の画像を背景として使用したタイトル表示（実際の音声長に合わせて）
+      GraphAILogger.info(`Using videoIds[0] as background: ${videoIds[0]}, total videoIds: ${videoIds.length}`);
       const titleWithBackground = await addTitleOverlay(ffmpegContext, context, videoIds[0], titleDuration);
 
       // タイトル音声を動画に含める
@@ -467,6 +476,8 @@ const createVideo = async (audioArtifactFilePath: string, outputVideoPath: strin
         GraphAILogger.info(`No title audio, using titleWithBackground: ${titleWithBackground}`);
         finalVideoId = titleWithBackground;
       }
+
+      GraphAILogger.info(`Final video ID for title: ${finalVideoId}`);
 
       // 残りのシーンを結合
       if (videoIds.length > 1) {
@@ -499,7 +510,11 @@ const createVideo = async (audioArtifactFilePath: string, outputVideoPath: strin
   const captionedVideoId = addCaptions(ffmpegContext, finalVideoId, context, caption);
   const mixedVideoId = addTransitionEffects(ffmpegContext, captionedVideoId, context, transitionVideoIds, beatTimestamps);
 
-  GraphAILogger.log("filterComplex:", ffmpegContext.filterComplex.join("\n"));
+  GraphAILogger.log("=== FFmpeg Filter Complex ===");
+  ffmpegContext.filterComplex.forEach((filter, index) => {
+    GraphAILogger.log(`${index}: ${filter}`);
+  });
+  GraphAILogger.log("=== End FFmpeg Filter Complex ===");
 
   const audioIndex = FfmpegContextAddInput(ffmpegContext, audioArtifactFilePath); // Add audio input
   const artifactAudioId = `${audioIndex}:a`;
