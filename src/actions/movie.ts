@@ -172,21 +172,14 @@ const generateTitleAudio = async (context: MulmoStudioContext): Promise<{ audioP
       },
     };
 
-    // 既存のbeatsを保存して、タイトル用のbeatsに置き換え
-    const originalBeats = audioContext.studio.beats;
-    audioContext.studio.beats = [];
-
-    GraphAILogger.info(`Audio context created with ${audioContext.studio.script.beats.length} beats and empty studio beats`);
+    GraphAILogger.info(`Audio context created with ${audioContext.studio.script.beats.length} beats`);
 
     // 音声生成を実行
     const audioResult = await audio(audioContext);
 
-    // 元のbeatsを復元
-    audioContext.studio.beats = originalBeats;
-
     // タイトル音声ファイルのパスと長さを返す
-    const audioPath = audioResult.studio.beats[0]?.audioFile || "";
-    const duration = audioResult.studio.beats[0]?.duration || 2.0;
+    const audioPath = audioResult.studio.beats[0].audioFile || "";
+    const duration = audioResult.studio.beats[0].duration || 2.0;
 
     GraphAILogger.info(`Title audio result: path=${audioPath}, duration=${duration}`);
 
