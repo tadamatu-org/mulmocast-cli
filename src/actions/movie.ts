@@ -12,7 +12,6 @@ import {
 import { MulmoStudioContextMethods } from "../methods/mulmo_studio_context.js";
 import { splitTextByPunctuation, splitTextByEnglishPunctuation } from "../utils/string.js";
 import { generateTitle } from "./captions.js";
-import { audio } from "./audio.js";
 
 // const isMac = process.platform === "darwin";
 const videoCodec = "libx264"; // "h264_videotoolbox" (macOS only) is too noisy
@@ -130,49 +129,6 @@ const addTitleOverlay = async (ffmpegContext: FfmpegContext, context: MulmoStudi
     console.error("Error adding title overlay:", error);
     // エラーの場合はベース動画をそのまま返す
     return baseVideoId;
-  }
-};
-
-const generateTitleAudio = async (context: MulmoStudioContext): Promise<{ audioPath: string; duration: number }> => {
-  try {
-    const title = context.studio.script.title;
-    if (!title) {
-      throw new Error("Title is not defined in script");
-    }
-
-    // タイトル音声を生成するための一時的なbeatを作成
-    const titleBeat = {
-      text: title,
-      speaker: "Presenter",
-      audioParams: {
-        padding: 0.0,
-        movieVolume: 1.0,
-      },
-    };
-
-    // 音声生成のためのコンテキストを作成
-    const audioContext = {
-      ...context,
-      studio: {
-        ...context.studio,
-        script: {
-          ...context.studio.script,
-          beats: [titleBeat],
-        },
-      },
-    };
-
-    // 音声生成を実行
-    const audioResult = await audio(audioContext);
-
-    // タイトル音声ファイルのパスと長さを返す
-    const audioPath = audioResult.studio.beats[0].audioFile || "";
-    const duration = audioResult.studio.beats[0].duration || 2.0;
-
-    return { audioPath, duration };
-  } catch (error) {
-    console.error("Error generating title audio:", error);
-    throw error;
   }
 };
 
@@ -301,19 +257,14 @@ const addTransitionEffects = (
   return captionedVideoId;
 };
 
-const mixAudiosFromMovieBeats = (ffmpegContext: FfmpegContext, artifactAudioId: string, audioIdsFromMovieBeats: string[], titleAudioId?: string) => {
-  const allAudioIds = [...audioIdsFromMovieBeats];
-  if (titleAudioId) {
-    allAudioIds.unshift(titleAudioId); // タイトル音声を最初に追加
-  }
-
-  if (allAudioIds.length > 0) {
+const mixAudiosFromMovieBeats = (ffmpegContext: FfmpegContext, artifactAudioId: string, audioIdsFromMovieBeats: string[]) => {
+  if (audioIdsFromMovieBeats.length > 0) {
     const mainAudioId = "mainaudio";
     const compositeAudioId = "composite";
-    const audioIds = allAudioIds.map((id) => `[${id}]`).join("");
+    const audioIds = audioIdsFromMovieBeats.map((id) => `[${id}]`).join("");
     FfmpegContextPushFormattedAudio(ffmpegContext, `[${artifactAudioId}]`, `[${mainAudioId}]`);
     ffmpegContext.filterComplex.push(
-      `[${mainAudioId}]${audioIds}amix=inputs=${allAudioIds.length + 1}:duration=first:dropout_transition=2[${compositeAudioId}]`,
+      `[${mainAudioId}]${audioIds}amix=inputs=${audioIdsFromMovieBeats.length + 1}:duration=first:dropout_transition=2[${compositeAudioId}]`,
     );
     return `[${compositeAudioId}]`; // notice that we need to use [mainaudio] instead of mainaudio
   }
@@ -421,21 +372,10 @@ const createVideo = async (audioArtifactFilePath: string, outputVideoPath: strin
   if (videoIds.length > 0) {
     const titleDisplayConfig = context.presentationStyle.movieParams?.titleDisplay;
     const titleEnabled = titleDisplayConfig?.enabled ?? true;
-    let titleDuration = titleDisplayConfig?.duration ?? 2.0;
+    const titleDuration = titleDisplayConfig?.duration ?? 2.0;
 
     if (titleEnabled) {
-      // タイトル音声を先に生成して実際の長さを取得
-      try {
-        const titleAudioResult = await generateTitleAudio(context);
-        if (titleAudioResult.audioPath) {
-          // 実際の音声長を使用
-          titleDuration = titleAudioResult.duration;
-        }
-      } catch (error) {
-        console.error("Error generating title audio:", error);
-      }
-
-      // シーン0の画像を背景として使用したタイトル表示（実際の音声長に合わせて）
+      // シーン0の画像を背景として使用したタイトル表示（2秒間）
       const titleWithBackground = await addTitleOverlay(ffmpegContext, context, videoIds[0], titleDuration);
 
       // 残りのシーンを結合
@@ -478,34 +418,17 @@ const createVideo = async (audioArtifactFilePath: string, outputVideoPath: strin
   const titleDisplayConfig = context.presentationStyle.movieParams?.titleDisplay;
   const titleEnabled = titleDisplayConfig?.enabled ?? true;
   const titleDuration = titleDisplayConfig?.duration ?? 2.0;
-  let titleOffset = titleEnabled ? titleDuration : 0;
+  const titleOffset = titleEnabled ? titleDuration : 0;
 
   let finalAudioId = artifactAudioId;
-  let titleAudioId: string | undefined;
-
-  if (titleEnabled && titleOffset > 0) {
-    try {
-      // タイトル音声を生成
-      const titleAudioResult = await generateTitleAudio(context);
-      if (titleAudioResult.audioPath) {
-        const titleAudioInputIndex = FfmpegContextAddInput(ffmpegContext, titleAudioResult.audioPath);
-        titleAudioId = `${titleAudioInputIndex}:a`;
-
-        // タイトル音声の実際の長さを使用してタイトル表示時間を調整
-        const actualTitleDuration = titleAudioResult.duration;
-        titleOffset = actualTitleDuration;
-      }
-    } catch (error) {
-      console.error("Error generating title audio:", error);
-    }
-
+  if (titleOffset > 0) {
     // タイトル表示時間分だけオーディオを遅延
     const delayedAudioId = "delayed_audio";
     ffmpegContext.filterComplex.push(`[${artifactAudioId}]adelay=${Math.round(titleOffset * 1000)}|${Math.round(titleOffset * 1000)}[${delayedAudioId}]`);
     finalAudioId = `[${delayedAudioId}]`;
   }
 
-  const ffmpegContextAudioId = mixAudiosFromMovieBeats(ffmpegContext, finalAudioId, audioIdsFromMovieBeats, titleAudioId);
+  const ffmpegContextAudioId = mixAudiosFromMovieBeats(ffmpegContext, finalAudioId, audioIdsFromMovieBeats);
 
   // GraphAILogger.debug("filterComplex", ffmpegContext.filterComplex);
 
