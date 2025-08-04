@@ -323,15 +323,23 @@ export const storyToScript = async ({
   // 生成されたスクリプトにタイトルを追加
   if (result?.writeJSON?.path) {
     const scriptPath = result.writeJSON.path;
+    console.log(`Adding title to script: ${scriptPath}`);
+    console.log(`Story title: ${story.title}`);
+
     const script = readAndParseJson(scriptPath, mulmoScriptSchema);
+    console.log(`Original beats count: ${script.beats.length}`);
 
     // タイトルをbeatsの最初に追加
     const { addTitleToBeats } = await import("../utils/title_utils.js");
     script.beats = addTitleToBeats(script.beats, story.title);
+    console.log(`Updated beats count: ${script.beats.length}`);
 
     // 修正されたスクリプトを保存
     const fs = await import("fs");
     fs.writeFileSync(scriptPath, JSON.stringify(script, null, 2));
+    console.log(`Script updated with title beat`);
+  } else {
+    console.log("No script path found in result");
   }
 
   writingMessage(result?.writeJSON?.path ?? "");

@@ -46,6 +46,12 @@ export const createTitleBeat = (title: string): MulmoBeat => {
  * @returns タイトルbeatが追加されたbeats配列
  */
 export const addTitleToBeats = (originalBeats: MulmoBeat[], title: string): MulmoBeat[] => {
+  console.log(`Creating title beat for: "${title}"`);
   const titleBeat = createTitleBeat(title);
-  return [titleBeat, ...originalBeats];
+  console.log(`Title beat created:`, JSON.stringify(titleBeat, null, 2));
+
+  const updatedBeats = [titleBeat, ...originalBeats];
+  console.log(`Updated beats array length: ${updatedBeats.length}`);
+
+  return updatedBeats;
 };
