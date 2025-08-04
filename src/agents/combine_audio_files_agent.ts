@@ -12,6 +12,9 @@ import {
 import { userAssert } from "../utils/utils.js";
 
 const getMovieDuration = async (beat: MulmoBeat) => {
+  if (!beat) {
+    return { duration: 0, hasAudio: false };
+  }
   if (beat.image?.type === "movie" && (beat.image.source.kind === "url" || beat.image.source.kind === "path")) {
     const pathOrUrl = beat.image.source.kind === "url" ? beat.image.source.url : beat.image.source.path;
     const speed = beat.movieParams?.speed ?? 1.0;
