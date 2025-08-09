@@ -63,7 +63,7 @@ const graphData = {
           searchQueryAgent: {
             agent: "openAIAgent",
             inputs: {
-              model: "gpt-4o-mini",
+              model: "gpt-5-mini",
               system: "You are a professional research assistant. Based on the user's inquiry, return the search query to be used for the search engine.",
               prompt: searchQueryPrompt("${:userInput}", "${:followUpQueries.join(,)}"),
             },
@@ -166,7 +166,7 @@ const graphData = {
           reflectionAgent: {
             agent: "openAIAgent",
             inputs: {
-              model: "gpt-4o-mini",
+              model: "gpt-5-mini",
               system:
                 "You are a professional research assistant. Based on the user's inquiry and the search results, return the sufficiency of information, knowledge gaps, and follow-up queries as a function call.",
               prompt: reflectionPrompt("${:searchQueryAgent.research_topic}", "${:reducer.array.toJSON()}"),
@@ -247,7 +247,7 @@ const graphData = {
             agent: "openAIAgent",
             unless: ":continue",
             inputs: {
-              model: "gpt-4o-mini",
+              model: "gpt-5-mini",
               system: "You are a professional research assistant. Based on the user's inquiry and the search results, return the final answer.",
               prompt: finalAnswerPrompt("${:userInput}", "${:searchResults.toJSON()}", "${:searchQueryAgent.research_topic}"),
             },
