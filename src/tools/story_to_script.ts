@@ -11,7 +11,7 @@ import { graphDataScriptGeneratePrompt, sceneToBeatsPrompt, storyToScriptInfoPro
 import { fileWriteAgent } from "@graphai/vanilla_node_agents";
 import validateSchemaAgent from "../agents/validate_schema_agent.js";
 import { ZodSchema } from "zod";
-import { llmPair } from "../utils/utils.js";
+import { llmPair, getTokenParams } from "../utils/utils.js";
 import type { LLM } from "../utils/provider2agent.js";
 import { storyToScriptGenerateMode } from "../utils/const.js";
 import { cliLoadingPlugin } from "../utils/plugins.js";
@@ -48,7 +48,8 @@ const createValidatedScriptGraphData = ({
           model: llmModel,
           system: systemPrompt,
           prompt,
-          max_tokens: maxTokens,
+          max_tokens: ":maxTokens",
+          max_completion_tokens: ":maxCompletionTokens",
         },
       },
       validateSchema: {
@@ -311,11 +312,15 @@ export const storyToScript = async ({
     graph.injectValue("prompt", scriptPrompt);
   }
 
+  // GPT-5かどうかでパラメータを分ける
+  const tokenParams = getTokenParams(model, max_tokens);
+
   graph.injectValue("outdir", outdir);
   graph.injectValue("fileName", fileName);
   graph.injectValue("llmAgent", agent);
   graph.injectValue("llmModel", model);
-  graph.injectValue("maxTokens", max_tokens);
+  graph.injectValue("maxTokens", "max_tokens" in tokenParams ? tokenParams.max_tokens : undefined);
+  graph.injectValue("maxCompletionTokens", "max_completion_tokens" in tokenParams ? tokenParams.max_completion_tokens : undefined);
   graph.registerCallback(cliLoadingPlugin({ nodeId: "script", message: "Generating script..." }));
 
   const result = await graph.run<{ path: string }>();

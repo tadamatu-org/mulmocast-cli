@@ -5,6 +5,18 @@ import { MulmoBeat, MulmoStudioMultiLingualData } from "../types/index.js";
 import { provider2LLMAgent } from "./provider2agent.js";
 import type { LLM } from "./provider2agent.js"; // TODO remove
 
+export const isGPT5Model = (model?: string): boolean => {
+  return model?.startsWith("gpt-5") ?? false;
+};
+
+export const getTokenParams = (model?: string, maxTokens?: number): { max_tokens?: number } | { max_completion_tokens?: number } => {
+  if (isGPT5Model(model)) {
+    return { max_completion_tokens: maxTokens };
+  } else {
+    return { max_tokens: maxTokens };
+  }
+};
+
 export const llmPair = (_llm?: LLM, _model?: string) => {
   const llmKey = _llm ?? "openai";
   const agent = provider2LLMAgent[llmKey]?.agentName ?? provider2LLMAgent.openai.agentName;

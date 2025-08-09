@@ -15,7 +15,7 @@ import { mulmoScriptSchema, urlsSchema } from "../types/schema.js";
 import { ScriptingParams } from "../types/index.js";
 import { cliLoadingPlugin } from "../utils/plugins.js";
 import { graphDataScriptFromUrlPrompt } from "../utils/prompt.js";
-import { llmPair } from "../utils/utils.js";
+import { llmPair, getTokenParams } from "../utils/utils.js";
 import { readFileSync } from "fs";
 
 const vanillaAgents = agents.default ?? agents;
@@ -50,6 +50,7 @@ const graphMulmoScript: GraphData = {
           model: ":llmModel",
           system: ":systemPrompt",
           max_tokens: ":maxTokens",
+          max_completion_tokens: ":maxCompletionTokens",
         },
       },
     },
@@ -243,13 +244,17 @@ export const createMulmoScriptFromUrl = async ({ urls, templateName, outDirPath,
     { agentFilters },
   );
 
+  // GPT-5かどうかでパラメータを分ける
+  const tokenParams = getTokenParams(model, max_tokens);
+
   graph.injectValue("urls", parsedUrls);
   graph.injectValue("systemPrompt", readTemplatePrompt(templateName));
   graph.injectValue("outdir", outDirPath);
   graph.injectValue("fileName", filename);
   graph.injectValue("llmAgent", agent);
   graph.injectValue("llmModel", model);
-  graph.injectValue("maxTokens", max_tokens);
+  graph.injectValue("maxTokens", "max_tokens" in tokenParams ? tokenParams.max_tokens : undefined);
+  graph.injectValue("maxCompletionTokens", "max_completion_tokens" in tokenParams ? tokenParams.max_completion_tokens : undefined);
   graph.registerCallback(cliLoadingPlugin({ nodeId: "mulmoScript", message: "Generating script..." }));
 
   const result = await graph.run<{ path: string }>();

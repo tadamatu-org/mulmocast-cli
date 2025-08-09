@@ -17,7 +17,7 @@ import { browserlessCacheGenerator } from "../utils/filters.js";
 import { mulmoScriptSchema, ScriptingParams } from "../types/index.js";
 import { browserlessAgent } from "@graphai/browserless_agent";
 import validateSchemaAgent from "../agents/validate_schema_agent.js";
-import { llmPair } from "../utils/utils.js";
+import { llmPair, getTokenParams } from "../utils/utils.js";
 import { interactiveClarificationPrompt, prefixPrompt } from "../utils/prompt.js";
 // import { cliLoadingPlugin } from "../utils/plugins.js";
 
@@ -134,6 +134,7 @@ const graphData = {
                 stream: true,
                 dataStream: true,
                 max_tokens: ":maxTokens",
+                max_completion_tokens: ":maxCompletionTokens",
               },
             },
             isResult: true,
@@ -259,11 +260,15 @@ export const createMulmoScriptInteractively = async ({ outDirPath, cacheDirPath,
       content: `${prompt}\n\n${interactiveClarificationPrompt}${webContentPrompt}`,
     },
   ]);
+  // GPT-5かどうかでパラメータを分ける
+  const tokenParams = getTokenParams(model, max_tokens);
+
   graph.injectValue("outdir", outDirPath);
   graph.injectValue("fileName", filename);
   graph.injectValue("llmAgent", agent);
   graph.injectValue("llmModel", model);
-  graph.injectValue("maxTokens", max_tokens);
+  graph.injectValue("maxTokens", "max_tokens" in tokenParams ? tokenParams.max_tokens : undefined);
+  graph.injectValue("maxCompletionTokens", "max_completion_tokens" in tokenParams ? tokenParams.max_completion_tokens : undefined);
   graph.registerCallback(({ nodeId, state }) => {
     if (nodeId === "chatAgent") {
       if (state === "executing") {
