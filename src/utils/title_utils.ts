@@ -42,7 +42,7 @@ export const createTitleBeat = (title: string): MulmoBeat => {
  */
 export const addTitleToBeats = (originalBeats: MulmoBeat[], title: string, displayTitle?: string): MulmoBeat[] => {
   const finalTitle = displayTitle || title;
-  console.log(`Creating title beat for: "${finalTitle}" (original: "${title}")`);
+  console.log(`Creating title beat for: "${finalTitle}" (original: "${title}", displayTitle: "${displayTitle}")`);
   const titleBeat = createTitleBeat(finalTitle);
   console.log(`Title beat created:`, JSON.stringify(titleBeat, null, 2));
 
