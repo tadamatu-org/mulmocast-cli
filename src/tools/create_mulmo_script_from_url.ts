@@ -309,7 +309,9 @@ export const createMulmoScriptFromFile = async (
 
     // タイトルをbeatsの最初に追加
     const { addTitleToBeats } = await import("../utils/title_utils.js");
-    script.beats = addTitleToBeats(script.beats, script.title || "タイトル");
+    // displayTitleが存在する場合はそれを使用、なければtitleを使用
+    const displayTitle = script.displayTitle;
+    script.beats = addTitleToBeats(script.beats, script.title || "タイトル", displayTitle);
     console.log(`Updated beats count: ${script.beats.length}`);
 
     // 修正されたスクリプトを保存
