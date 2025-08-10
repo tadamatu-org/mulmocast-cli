@@ -304,8 +304,20 @@ export const createMulmoScriptFromFile = async (
   try {
     const { readAndParseJson } = await import("../utils/file.js");
     const { mulmoScriptSchema } = await import("../types/schema.js");
+
+    // 入力ファイルからdisplayTitleを取得
+    const inputData = JSON.parse(text);
+    const inputDisplayTitle = inputData.displayTitle;
+    console.log(`Input displayTitle: "${inputDisplayTitle}"`);
+
     const script = readAndParseJson(scriptPath, mulmoScriptSchema);
     console.log(`Original beats count: ${script.beats.length}`);
+
+    // displayTitleを設定
+    if (inputDisplayTitle) {
+      script.displayTitle = inputDisplayTitle;
+      console.log(`Set script displayTitle to: "${inputDisplayTitle}"`);
+    }
 
     // タイトルをbeatsの最初に追加
     const { addTitleToBeats } = await import("../utils/title_utils.js");
