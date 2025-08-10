@@ -19,7 +19,7 @@ import { text2hash, localizedText, settings2GraphAIConfig } from "../utils/utils
 import { provider2TTSAgent } from "../utils/provider2agent.js";
 import { MulmoStudioContextMethods } from "../methods/mulmo_studio_context.js";
 import { MulmoMediaSourceMethods } from "../methods/mulmo_media_source.js";
-import { splitTextByPunctuation, splitTextByEnglishPunctuation } from "../utils/string.js";
+import { splitTextByPunctuation, splitTextByEnglishPunctuation, replacePairsJa, replacementsJa } from "../utils/string.js";
 
 const vanillaAgents = agents.default ?? agents;
 
@@ -61,7 +61,13 @@ const preprocessor = (namedInputs: {
 }) => {
   const { beat, studioBeat, multiLingual, context } = namedInputs;
   const { lang } = context;
-  const text = localizedText(beat, multiLingual, lang);
+  let text = localizedText(beat, multiLingual, lang);
+
+  // 日本語の場合は読み方の置換を適用
+  if (lang === "ja") {
+    text = replacePairsJa(replacementsJa)(text);
+  }
+
   const { voiceId, provider, speechOptions, model } = getAudioParam(context, beat);
   const audioPath = getBeatAudioPath(text, context, beat, lang);
   studioBeat.audioFile = audioPath; // TODO: Passing by reference is difficult to maintain, so pass it using graphai inputs
