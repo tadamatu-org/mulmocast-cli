@@ -438,6 +438,7 @@ export const mulmoReferenceSchema = z.object({
 export const mulmoScriptSchema = mulmoPresentationStyleSchema
   .extend({
     title: z.string().optional(),
+    displayTitle: z.string().optional(),
     description: z.string().optional(),
     references: z.array(mulmoReferenceSchema).optional(),
     lang: langSchema, // required (default WAS "en")
