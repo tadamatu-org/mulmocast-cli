@@ -279,8 +279,13 @@ const combineAudioFilesAgent: AgentFunction<null, { studio: MulmoStudio }, { con
       })),
     },
   };
-  result.studio.beats.reduce((acc, beat) => {
-    beat.startAt = acc;
+  result.studio.beats.reduce((acc, beat, index) => {
+    // タイトルbeat（最初のbeat）の場合は、元のstartAtを保持する
+    if (index === 0 && context.studio.script.beats[0].startAt !== undefined) {
+      beat.startAt = context.studio.script.beats[0].startAt;
+    } else {
+      beat.startAt = acc;
+    }
     return acc + beat.duration;
   }, 0);
   // context.studio = result.studio; // TODO: removing this breaks test/test_movie.ts

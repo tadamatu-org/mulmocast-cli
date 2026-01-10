@@ -10,6 +10,7 @@ import {
   FfmpegContext,
 } from "../utils/ffmpeg_utils.js";
 import { MulmoStudioContextMethods } from "../methods/mulmo_studio_context.js";
+import { splitTextByPunctuation, splitTextByEnglishPunctuation } from "../utils/string.js";
 
 // const isMac = process.platform === "darwin";
 const videoCodec = "libx264"; // "h264_videotoolbox" (macOS only) is too noisy
@@ -107,16 +108,76 @@ const getOutputOption = (audioId: string, videoId: string) => {
 };
 
 const addCaptions = (ffmpegContext: FfmpegContext, concatVideoId: string, context: MulmoStudioContext, caption: string | undefined) => {
-  const beatsWithCaptions = context.studio.beats.filter(({ captionFile }) => captionFile);
+  const beatsWithCaptions = context.studio.beats.filter(({ captionFile, captionFiles }) => captionFile || (captionFiles && captionFiles.length > 0));
   if (caption && beatsWithCaptions.length > 0) {
     const introPadding = context.presentationStyle.audioParams.introPadding;
     return beatsWithCaptions.reduce((acc, beat, index) => {
-      const { startAt, duration, captionFile } = beat;
-      if (startAt !== undefined && duration !== undefined && captionFile !== undefined) {
+      const { startAt, duration, captionFile, captionFiles } = beat;
+
+      // 句読点分割されたcaptionがある場合はそれを使用
+      if (captionFiles && captionFiles.length > 0 && startAt !== undefined && duration !== undefined) {
+        GraphAILogger.info(`Processing split captions for beat ${index}: ${captionFiles.length} files, startAt=${startAt}, duration=${duration}`);
+        return captionFiles.reduce((innerAcc, captionFilePath, captionIndex) => {
+          const captionInputIndex = FfmpegContextAddInput(ffmpegContext, captionFilePath);
+          const compositeVideoId = `oc${index}_${captionIndex}`;
+
+          // 実際のaudioの長さを使用してcaptionの表示時間を計算
+          const beat = context.studio.beats[index];
+          let captionDuration: number;
+          let captionStartAt: number;
+
+          if (beat.splitAudioDurations && beat.splitAudioDurations.length > captionIndex) {
+            // 実際のaudioの長さを使用
+            captionDuration = beat.splitAudioDurations[captionIndex];
+            // 前のaudioファイルの長さを累積して開始時間を計算
+            captionStartAt = startAt + beat.splitAudioDurations.slice(0, captionIndex).reduce((sum, dur) => sum + dur, 0);
+            GraphAILogger.info(`Caption ${index}-${captionIndex}: using actual audio duration=${captionDuration}, startAt=${captionStartAt}`);
+          } else {
+            GraphAILogger.info(
+              `Beat ${index}: splitAudioDurations not available or insufficient length. Available: ${beat.splitAudioDurations?.length || 0}, needed: ${captionIndex + 1}`,
+            );
+            // 文字数の比率で表示時間を計算
+            const totalText = context.studio.script.beats[index].text;
+            const sentences = context.lang === "ja" ? splitTextByPunctuation(totalText) : splitTextByEnglishPunctuation(totalText);
+
+            if (sentences.length > captionIndex) {
+              const currentSentenceLength = sentences[captionIndex].length;
+              const totalLength = sentences.reduce((sum, sentence) => sum + sentence.length, 0);
+              const ratio = currentSentenceLength / totalLength;
+              captionDuration = duration * ratio;
+              captionStartAt = startAt + sentences.slice(0, captionIndex).reduce((sum, sentence) => sum + (sentence.length / totalLength) * duration, 0);
+              GraphAILogger.info(
+                `Caption ${index}-${captionIndex}: using text ratio duration=${captionDuration}, startAt=${captionStartAt}, sentenceLength=${currentSentenceLength}, totalLength=${totalLength}`,
+              );
+            } else {
+              // フォールバック: 等間隔で分割
+              captionDuration = duration / captionFiles.length;
+              captionStartAt = startAt + captionDuration * captionIndex;
+              GraphAILogger.info(`Caption ${index}-${captionIndex}: fallback duration=${captionDuration}, startAt=${captionStartAt}`);
+            }
+          }
+
+          ffmpegContext.filterComplex.push(
+            `[${innerAcc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${captionStartAt + introPadding},${captionStartAt + captionDuration + introPadding})'[${compositeVideoId}]`,
+          );
+          GraphAILogger.info(
+            `Added filter for caption ${index}-${captionIndex}: between(t,${captionStartAt + introPadding},${captionStartAt + captionDuration + introPadding})`,
+          );
+          return compositeVideoId;
+        }, acc);
+      }
+
+      // 通常のcaptionファイルがある場合（句読点分割がない場合のみ）
+      if (startAt !== undefined && duration !== undefined && captionFile !== undefined && (!captionFiles || captionFiles.length === 0)) {
         const captionInputIndex = FfmpegContextAddInput(ffmpegContext, captionFile);
         const compositeVideoId = `oc${index}`;
+        const captionStartTime = startAt + introPadding;
+        const captionEndTime = startAt + duration + introPadding;
+        GraphAILogger.info(
+          `Caption timing for beat ${index}: startAt=${startAt}, duration=${duration}, introPadding=${introPadding}, captionStartTime=${captionStartTime}, captionEndTime=${captionEndTime}`,
+        );
         ffmpegContext.filterComplex.push(
-          `[${acc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${startAt + introPadding},${startAt + duration + introPadding})'[${compositeVideoId}]`,
+          `[${acc}][${captionInputIndex}:v]overlay=format=auto:enable='between(t,${captionStartTime},${captionEndTime})'[${compositeVideoId}]`,
         );
         return compositeVideoId;
       }

@@ -327,6 +327,8 @@ export const mulmoBeatSchema = z
     soundEffectPrompt: z.string().optional(),
     htmlPrompt: htmlPromptParamsSchema.optional(),
     enableLipSync: z.boolean().optional().describe("Enable lip sync generation for this beat"),
+    noPunctuationSplit: z.boolean().optional().describe("Skip punctuation splitting for this beat (used for titles)"),
+    startAt: z.number().optional().describe("Start time for this beat in seconds"),
   })
   .strict();
 
@@ -342,7 +344,7 @@ export const mulmoCanvasDimensionSchema = z
 export const mulmoCastCreditSchema = z
   .object({
     version: z.literal("1.1"),
-    credit: z.literal("closing").optional(),
+    credit: z.enum(["closing", "none"]).optional(),
   })
   .strict();
 
@@ -436,6 +438,7 @@ export const mulmoReferenceSchema = z.object({
 export const mulmoScriptSchema = mulmoPresentationStyleSchema
   .extend({
     title: z.string().optional(),
+    displayTitle: z.string().optional(),
     description: z.string().optional(),
     references: z.array(mulmoReferenceSchema).optional(),
     lang: langSchema, // required (default WAS "en")
@@ -464,6 +467,9 @@ export const mulmoStudioBeatSchema = z
     soundEffectFile: z.string().optional(), // path to the sound effect file
     lipSyncFile: z.string().optional(), // path to the lip sync file
     captionFile: z.string().optional(), // path to the caption image
+    captionFiles: z.array(z.string()).optional(), // array of caption image paths for punctuation split
+    splitAudioFiles: z.array(z.string()).optional(), // array of split audio file paths
+    splitAudioDurations: z.array(z.number()).optional(), // array of split audio durations
   })
   .strict();
 

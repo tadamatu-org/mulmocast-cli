@@ -180,4 +180,5 @@ export type InitOptions = {
   l?: string;
   c?: string;
   p?: string;
+  ps?: boolean;
 };

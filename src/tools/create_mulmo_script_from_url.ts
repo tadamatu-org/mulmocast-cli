@@ -296,5 +296,45 @@ export const createMulmoScriptFromFile = async (
     showErrorMessage("Script generation failed. Please try again.");
     return;
   }
+
+  // 生成されたスクリプトにタイトルを追加
+  const scriptPath = result.writeJSON.path;
+  console.log(`Adding title to script: ${scriptPath}`);
+
+  try {
+    const { readAndParseJson } = await import("../utils/file.js");
+    const { mulmoScriptSchema } = await import("../types/schema.js");
+
+    // 入力ファイルからdisplayTitleを取得
+    const inputData = JSON.parse(text);
+    const inputDisplayTitle = inputData.displayTitle;
+    console.log(`Input displayTitle: "${inputDisplayTitle}"`);
+
+    const script = readAndParseJson(scriptPath, mulmoScriptSchema);
+    console.log(`Original beats count: ${script.beats.length}`);
+
+    // displayTitleを設定
+    if (inputDisplayTitle) {
+      script.displayTitle = inputDisplayTitle;
+      console.log(`Set script displayTitle to: "${inputDisplayTitle}"`);
+    }
+
+    // タイトルをbeatsの最初に追加
+    const { addTitleToBeats } = await import("../utils/title_utils.js");
+    // displayTitleが存在する場合はそれを使用、なければtitleを使用
+    const displayTitle = script.displayTitle;
+    console.log(`Script title: "${script.title}"`);
+    console.log(`Script displayTitle: "${displayTitle}"`);
+    script.beats = addTitleToBeats(script.beats, script.title || "タイトル", displayTitle);
+    console.log(`Updated beats count: ${script.beats.length}`);
+
+    // 修正されたスクリプトを保存
+    const fs = await import("fs");
+    fs.writeFileSync(scriptPath, JSON.stringify(script, null, 2));
+    console.log(`Script updated with title beat`);
+  } catch (error) {
+    console.error("Error adding title to script:", error);
+  }
+
   writingMessage(result?.writeJSON?.path ?? "");
 };
